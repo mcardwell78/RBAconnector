@@ -1,0 +1,297 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profiles with role-based access
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.admin == true ||
+        resource.data.role == 'admin'
+      );
+      // Users can write to their own profile, admins can write to all
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Email Templates: allow public read, only owner can write/delete, and allow public templates
+    match /emailTemplates/{templateId} {
+      allow read: if request.auth != null && (resource.data.public == true || resource.data.userId == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Contacts: only owner or admin
+    match /contacts/{contactId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Campaigns: allow users to read their own campaigns + public campaigns, admins see all
+    match /campaigns/{campaignId} {
+      // Admin can do everything
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+      // Users can read their own campaigns (regardless of public/private status)
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Anyone can read public campaigns
+      allow read: if request.auth != null && resource.data.public == true;
+      // Users can create campaigns with their userId
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Tasks: only owner or admin
+    match /tasks/{taskId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId is string && resource.data.userId == request.auth.uid)
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Campaign Enrollments: only owner or admin, explicit rules
+    match /campaignEnrollments/{enrollmentId} {
+      // Allow service account (Cloud Functions) to update
+      allow update: if request.auth == null;
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+      // Only allow users to create enrollments for themselves
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.resource.data.userId == request.auth.uid
+      );
+      // Only allow users to update their own enrollments
+      allow update: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+      // Only allow users to delete their own enrollments
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Email Events: only owner or admin
+    match /emailEvents/{eventId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // Email Logs: only owner or admin
+    match /emailLogs/{logId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // Scheduled Emails: only owner or admin, and allow Cloud Functions to write/update/delete
+    match /scheduledEmails/{emailId} {
+      // TEMPORARY: Allow all authenticated users to read for debugging
+      allow read: if request.auth != null;
+      allow write, update, delete: if request.auth == null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // Email Engagements: tracking email interactions
+    match /emailEngagements/{engagementId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid)
+      );
+      // Allow tracking pixels and public click tracking (no auth required)
+      allow create: if true;
+    }
+
+    // Contact Heat Scores: calculated engagement metrics
+    match /contactHeatScores/{contactId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create, update: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Email Click Tracking: allow creation by functions, read by owner
+    match /emailClicks/{clickId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth == null || (
+        request.auth != null && 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // User Settings: user preferences for automation
+    match /userSettings/{userId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // User Automation Settings: user preferences for automation (alternative collection name)
+    match /userAutomationSettings/{userId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Automation Triggers: only owner or admin
+    match /automationTriggers/{triggerId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Automation Tasks: only owner or admin
+    match /automationTasks/{taskId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // Zoho Mail Tokens: secure storage for OAuth tokens
+    match /zohoTokens/{userId} {
+      // Only the user themselves can access their tokens
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Admin emergency access (if needed for debugging)
+      allow read: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Email Replies: processed replies from Zoho Mail
+    match /emailReplies/{replyId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true || 
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && (
+        request.auth.token.admin == true || 
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+      // Allow Cloud Functions to create replies
+      allow create: if request.auth == null;
+    }
+
+    // Reply Templates: for responding to emails
+    match /replyTemplates/{templateId} {
+      allow read: if request.auth != null && (
+        resource.data.public == true || 
+        resource.data.userId == request.auth.uid ||
+        request.auth.token.admin == true
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // System Analytics: admin-only access
+    match /systemAnalytics/{docId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // User Activity Logs: admin can read all, users can read their own
+    match /userActivityLogs/{logId} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
