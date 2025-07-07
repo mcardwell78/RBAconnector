@@ -64,6 +64,10 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Firebase service account keys (SENSITIVE - DO NOT COMMIT)
 functions/serviceAccountKey.json
